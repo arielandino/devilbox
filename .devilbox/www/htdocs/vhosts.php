@@ -53,38 +53,75 @@ function getProjectLogo($vhost)
 			<div class="col-md-12">
 				<?php $vHosts = loadClass('Httpd')->getVirtualHosts(); ?>
 				<?php if ($vHosts): ?>
-					<table class="table table-striped">
-						<thead class="thead-inverse">
-							<tr>
-								<th>Projectos</th>
-								<th>DocumentRoot</th>
-								<th>Backend</th>
-								<th>Config</th>
-								<th style="width:60px;">Valid</th>
-								<th style="width:260px;">URL</th>
-							</tr>
-						</thead>
-						<tbody>
-							<?php foreach ($vHosts as $vHost): ?>
+					<?php
+					$env_groups_str = loadClass('Helper')->getEnv('VHOST_GROUPS');
+					$vhost_groups = [];
+					if ($env_groups_str) {
+						$pairs = explode(',', $env_groups_str);
+						foreach ($pairs as $pair) {
+							$parts = explode('=', $pair, 2);
+							if (count($parts) == 2) {
+								$vhost_groups[trim($parts[0])] = trim($parts[1]);
+							}
+						}
+					}
+					$grouped_vhosts = [];
+					foreach ($vhost_groups as $prefix => $label) {
+						$grouped_vhosts[$label] = [];
+					}
+					$grouped_vhosts['Otros'] = [];
+
+					foreach ($vHosts as $vHost) {
+						$matched = false;
+						foreach ($vhost_groups as $prefix => $label) {
+							if (strpos($vHost['name'], $prefix) === 0) {
+								$grouped_vhosts[$label][] = $vHost;
+								$matched = true;
+								break;
+							}
+						}
+						if (!$matched) {
+							$grouped_vhosts['Otros'][] = $vHost;
+						}
+					}
+					?>
+
+					<?php foreach ($grouped_vhosts as $group_label => $hosts): ?>
+						<?php if (empty($hosts)) continue; ?>
+						<h3 data-toggle="collapse" data-target="#group-<?php echo md5($group_label); ?>" style="cursor: pointer; margin-top: 20px; font-size: 1.4rem;">
+							<i class="fa fa-folder-open-o" aria-hidden="true"></i> <?php echo htmlspecialchars($group_label); ?>
+						</h3>
+						<div id="group-<?php echo md5($group_label); ?>" class="collapse show">
+						<table class="table table-striped">
+							<thead class="thead-inverse">
 								<tr>
-									<td>
-										<?php if ($logo = getProjectLogo($vHost['name'])): ?>
-											<img src="<?php echo $logo; ?>"
-												style="max-height:34px; max-width: 34px; margin-right: 8px; vertical-align: middle; border-radius: 2px;" />
-										<?php else: ?>
-											<i class="fa fa-globe" aria-hidden="true"
-												style="width: 34px; margin-right: 8px; vertical-align: middle; color: #adb5bd;"></i>
-										<?php endif; ?>
-										<?php echo $vHost['name']; ?>
-
-									</td>
-
-									<td><?php echo loadClass('Helper')->getEnv('HOST_PATH_HTTPD_DATADIR'); ?>/<?php echo $vHost['name']; ?>/<?php echo loadClass('Helper')->getEnv('HTTPD_DOCROOT_DIR'); ?>
-									</td>
-									<td>
-										<?php echo loadClass('Httpd')->getVhostBackend($vHost['name']); ?>
-									</td>
-									<td>
+									<th style="width:60px;">Logo</th>
+									<th style="width:260px;">URL</th>
+									<th>DocumentRoot</th>
+									<th>Backend</th>
+									<th>Config</th>
+									<th style="width:60px;">Valid</th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php foreach ($hosts as $vHost): ?>
+									<tr>
+										<td class="text-xs-center">
+											<?php if ($logo = getProjectLogo($vHost['name'])): ?>
+												<img src="<?php echo $logo; ?>" style="max-height:34px; max-width: 34px; vertical-align: middle; border-radius: 2px;" />
+											<?php else: ?>
+												<i class="fa fa-globe" aria-hidden="true" style="font-size: 34px; vertical-align: middle; color: #adb5bd;"></i>
+											<?php endif; ?>
+										</td>
+										<td id="href-<?php echo $vHost['name']; ?>">
+											<?php echo htmlspecialchars($vHost['name']); ?>
+										</td>
+										<td><?php echo loadClass('Helper')->getEnv('HOST_PATH_HTTPD_DATADIR'); ?>/<?php echo $vHost['name']; ?>/<?php echo loadClass('Helper')->getEnv('HTTPD_DOCROOT_DIR'); ?>
+										</td>
+										<td>
+											<?php echo loadClass('Httpd')->getVhostBackend($vHost['name']); ?>
+										</td>
+										<td>
 										<?php $id_vhost_httpd = str_replace('=', '', base64_encode('vhost_httpd_conf_' . $vHost['name'])); ?>
 										<?php $id_vhost_vhostgen = str_replace('=', '', base64_encode('vhost_vhost_gen_' . $vHost['name'])); ?>
 
@@ -172,12 +209,13 @@ function getProjectLogo($vhost)
 										<?php endif; ?>
 									</td>
 									<td class="text-xs-center text-xs-small" id="valid-<?php echo $vHost['name']; ?>"></td>
-									<td id="href-<?php echo $vHost['name']; ?>"></td>
 								</tr>
 								<input type="hidden" name="vhost[]" class="vhost" value="<?php echo $vHost['name']; ?>" />
-							<?php endforeach; ?>
-						</tbody>
-					</table>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+						</div>
+					<?php endforeach; ?>
 				<?php else: ?>
 					<h4>No projects here.</h4>
 					<p>Simply create a directory in
