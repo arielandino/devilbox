@@ -54,34 +54,70 @@ function getProjectLogo($vhost)
 				<?php $vHosts = loadClass('Httpd')->getVirtualHosts(); ?>
 				<?php if ($vHosts): ?>
 					<?php
-					$env_groups_str = loadClass('Helper')->getEnv('VHOST_GROUPS');
-					$vhost_groups = [];
-					if ($env_groups_str) {
-						$pairs = explode(',', $env_groups_str);
-						foreach ($pairs as $pair) {
-							$parts = explode('=', $pair, 2);
-							if (count($parts) == 2) {
-								$vhost_groups[trim($parts[0])] = trim($parts[1]);
+					$vhost_to_group_map = [];
+					$group_labels = [];
+
+					// 1. Load from YAML file if exists
+					$yaml_file = '/shared/httpd/vhost-groups.yml';
+					if (file_exists($yaml_file)) {
+						if (function_exists('yaml_parse_file')) {
+							$yaml_data = yaml_parse_file($yaml_file);
+							if (is_array($yaml_data)) {
+								foreach ($yaml_data as $group => $sites) {
+									if (is_array($sites)) {
+										$group_labels[] = $group;
+										foreach ($sites as $site) {
+											$vhost_to_group_map[$site] = $group;
+										}
+									}
+								}
+							}
+						} else {
+							// Simple custom parser for Group: \n  - site
+							$lines = file($yaml_file);
+							$current_group = '';
+							foreach ($lines as $line) {
+								$line = rtrim($line);
+								if (empty(trim($line)) || strpos(trim($line), '#') === 0) continue;
+
+								if (preg_match('/^([^ -][^:]*):/', $line, $matches)) {
+									$current_group = trim($matches[1]);
+									$group_labels[] = $current_group;
+								} elseif (preg_match('/^\s*-\s*(.+)/', $line, $matches)) {
+									if ($current_group) {
+										$vhost_to_group_map[trim($matches[1])] = $current_group;
+									}
+								}
 							}
 						}
 					}
+
+					// 2. Process grouping
 					$grouped_vhosts = [];
-					foreach ($vhost_groups as $prefix => $label) {
+					foreach (array_unique($group_labels) as $label) {
 						$grouped_vhosts[$label] = [];
 					}
 					$grouped_vhosts['Otros'] = [];
 
 					foreach ($vHosts as $vHost) {
-						$matched = false;
-						foreach ($vhost_groups as $prefix => $label) {
-							if (strpos($vHost['name'], $prefix) === 0) {
-								$grouped_vhosts[$label][] = $vHost;
-								$matched = true;
-								break;
+						$site_name = $vHost['name'];
+						if (isset($vhost_to_group_map[$site_name])) {
+							$label = $vhost_to_group_map[$site_name];
+							$grouped_vhosts[$label][] = $vHost;
+						} else {
+							// Fallback to prefix matching if any prefixes are defined as "Prefix: Group" 
+							// in the old style (this keeps backward compatibility if user mixes styles)
+							$matched = false;
+							foreach ($vhost_to_group_map as $key => $val) {
+								if (substr($key, -1) === '_' && strpos($site_name, $key) === 0) {
+									$grouped_vhosts[$val][] = $vHost;
+									$matched = true;
+									break;
+								}
 							}
-						}
-						if (!$matched) {
-							$grouped_vhosts['Otros'][] = $vHost;
+							if (!$matched) {
+								$grouped_vhosts['Otros'][] = $vHost;
+							}
 						}
 					}
 					?>
@@ -90,6 +126,7 @@ function getProjectLogo($vhost)
 						<?php if (empty($hosts)) continue; ?>
 						<h3 data-toggle="collapse" data-target="#group-<?php echo md5($group_label); ?>" style="cursor: pointer; margin-top: 20px; font-size: 1.4rem;">
 							<i class="fa fa-folder-open-o" aria-hidden="true"></i> <?php echo htmlspecialchars($group_label); ?>
+							<span class="badge badge-info" style="font-size: 0.8rem; vertical-align: middle;"><?php echo count($hosts); ?></span>
 						</h3>
 						<div id="group-<?php echo md5($group_label); ?>" class="collapse show">
 						<table class="table table-striped">
