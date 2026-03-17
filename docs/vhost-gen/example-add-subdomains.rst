@@ -56,6 +56,23 @@ create. Generically, it looks like this:
 Example
 -------
 
+Alias management through `vhost-groups.yml`
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+As an alternative to per-project `vhost-gen` templates, you can define aliases centrally in
+`vhost-groups.yml` (as described in the main README). Add the canonical project entry plus aliases:
+
+.. code-block:: yaml
+
+   Produccion:
+     - pa_resto
+     - pa_resto:
+         - admin.pa_resto
+         - api.pa_resto
+
+Then run the normal Devilbox start workflow (the script creates symlinks for the aliases).
+
+
 Prerequisite
 ^^^^^^^^^^^^
 

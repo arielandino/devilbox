@@ -11,6 +11,7 @@
 **[Community](#-community)** |
 **[Contributing](#-contributing)** |
 **[Logos](#-logos)** |
+**[Custom Grouping](#-custom-vhost-grouping)** |
 **[License](#-license)**
 
 ![Devilbox](docs/_includes/figures/devilbox/devilbox-intranet-dash-all.png)
@@ -1253,3 +1254,46 @@ Copyright (c) 2016 **[cytopia](https://github.com/cytopia)**
 <a href="https://github.com/cytopia/devilbox/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=cytopia/devilbox" />
 </a>
+
+---
+
+## 📂 Custom Vhost Grouping
+
+You can now organize your projects into custom groups without the need to rename any folders.
+
+### How to add or move a site:
+1. Edit the [`vhost-groups.yml`](vhost-groups.yml) file located in the root of the `devilbox` directory.
+2. Add your site's folder name under the desired group. 
+   - **Important**: A site can only belong to one group. If it appears twice, the last occurrence in the file will take precedence.
+3. Save the file and refresh the `http://localhost/vhosts.php` page.
+
+### Features:
+- **Group Persistence**: If you collapse a group, the browser will remember its state even after a page refresh.
+- **Badge Counters**: Each group displays the number of sites it contains.
+- **"Others" Group**: Any site not explicitly listed will automatically be placed in the "Others" group.
+
+### Alias Support (same directory for multiple vhosts)
+Devilbox now supports defining alias hostnames for a single project in `vhost-groups.yml`. When aliases are configured, a symlink is created in the project dir to route all alias domains to the same webroot.
+
+Example:
+
+```yaml
+Produccion:
+  - pa_resto
+  - pa_resto:
+      - admin.pa_resto
+      - api.pa_resto
+```
+
+This config generates:
+- `data/www/admin.pa_resto` -> `data/www/pa_resto`
+- `data/www/api.pa_resto` -> `data/www/pa_resto`
+
+Run `./run.sh` and the alias symlinks are created automatically before the containers start.
+
+Supported alias configuration:
+- `- <project>`: regular project path.
+- `- <project>:` plus nested `- <alias>` entries: aliases that point to the project.
+
+DNS: Add records for `admin.pa_resto.loc` and `api.pa_resto.loc` (or test via `/etc/hosts` entries).
+

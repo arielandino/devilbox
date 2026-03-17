@@ -45,7 +45,7 @@ function getProjectLogo($vhost)
 
 	<div class="container">
 
-		<h1>Virtual Hosts__</h1>
+		<h1>Virtual Host 2.0</h1>
 		<br />
 		<br />
 
@@ -54,39 +54,87 @@ function getProjectLogo($vhost)
 				<?php $vHosts = loadClass('Httpd')->getVirtualHosts(); ?>
 				<?php if ($vHosts): ?>
 					<?php
-					$vhost_to_group_map = [];
-					$group_labels = [];
+					$vhost_to_group_map = [];				$vhost_alias_map = [];					$group_labels = [];
 
 					// 1. Load from YAML file if exists
 					$yaml_file = '/shared/httpd/vhost-groups.yml';
 					if (file_exists($yaml_file)) {
 						if (function_exists('yaml_parse_file')) {
+							// Using YAML Extension
 							$yaml_data = yaml_parse_file($yaml_file);
 							if (is_array($yaml_data)) {
 								foreach ($yaml_data as $group => $sites) {
 									if (is_array($sites)) {
 										$group_labels[] = $group;
 										foreach ($sites as $site) {
-											$vhost_to_group_map[$site] = $group;
+									if (is_scalar($site)) {
+										$vhost_to_group_map[(string)$site] = $group;
+									} elseif (is_array($site) || is_object($site)) {
+										$site_data = (array)$site;
+										foreach ($site_data as $source => $aliases) {
+												if (!is_scalar($source)) {
+													continue;
+												}
+												$source_key = (string)$source;
+												$vhost_to_group_map[$source_key] = $group;
+												if (!isset($vhost_alias_map)) {
+													$vhost_alias_map = [];
+												}
+												foreach ((array)$aliases as $alias) {
+													if (!is_scalar($alias)) {
+														continue;
+													}
+													$vhost_alias_map[(string)$alias] = $source_key;
+												}
+												}
+											}
 										}
 									}
 								}
 							}
 						} else {
-							// Simple custom parser for Group: \n  - site
-							$lines = file($yaml_file);
-							$current_group = '';
-							foreach ($lines as $line) {
-								$line = rtrim($line);
-								if (empty(trim($line)) || strpos(trim($line), '#') === 0) continue;
+						// Simple custom parser for Group: \n  - site and alias support
+						$lines = file($yaml_file);
+						$current_group = '';
+						$current_alias_base = null;
+						foreach ($lines as $line) {
+							$line = rtrim($line);
+							$trimmed = trim($line);
+							if (empty($trimmed) || strpos($trimmed, '#') === 0) continue;
 
-								if (preg_match('/^([^ -][^:]*):/', $line, $matches)) {
-									$current_group = trim($matches[1]);
-									$group_labels[] = $current_group;
-								} elseif (preg_match('/^\s*-\s*(.+)/', $line, $matches)) {
-									if ($current_group) {
-										$vhost_to_group_map[trim($matches[1])] = $current_group;
-									}
+							// Group header: GroupName:
+							if (preg_match('/^([^ -][^:]*):\s*$/', $trimmed, $matches)) {
+								$current_group = trim($matches[1]);
+								$group_labels[] = $current_group;
+								$current_alias_base = null;
+								continue;
+							}
+
+							if (!$current_group) continue;
+
+							// Alias mapping start: - base:
+							if (preg_match('/^\s*-\s*([^:]+?):\s*$/', $line, $matches)) {
+								$current_alias_base = trim($matches[1]);
+								$vhost_to_group_map[$current_alias_base] = $current_group;
+								continue;
+							}
+
+							// Alias entry under alias mapping:   - alias
+							if ($current_alias_base && preg_match('/^\s{4,}[-*]\s*(.+)$/', $line, $matches)) {
+								$alias = trim($matches[1]);
+								if ($alias !== '') {
+									$vhost_alias_map[$alias] = $current_alias_base;
+								}
+								continue;
+							}
+
+							// Normal single entry: - site
+							if (preg_match('/^\s*-\s*(.+)/', $line, $matches)) {
+								$site = trim($matches[1]);
+								if ($site !== '') {
+									$vhost_to_group_map[$site] = $current_group;
+								}
+								$current_alias_base = null;
 								}
 							}
 						}
@@ -101,8 +149,16 @@ function getProjectLogo($vhost)
 
 					foreach ($vHosts as $vHost) {
 						$site_name = $vHost['name'];
+						// Skip if this is an alias (we'll show it under its canonical host)
+						if (isset($vhost_alias_map[$site_name])) {
+							continue;
+						}
+
 						if (isset($vhost_to_group_map[$site_name])) {
 							$label = $vhost_to_group_map[$site_name];
+							$grouped_vhosts[$label][] = $vHost;
+						} elseif (isset($vhost_alias_map[$site_name]) && isset($vhost_to_group_map[$vhost_alias_map[$site_name]])) {
+							$label = $vhost_to_group_map[$vhost_alias_map[$site_name]];
 							$grouped_vhosts[$label][] = $vHost;
 						} else {
 							// Fallback to prefix matching if any prefixes are defined as "Prefix: Group" 
@@ -150,9 +206,24 @@ function getProjectLogo($vhost)
 												<i class="fa fa-globe" aria-hidden="true" style="font-size: 34px; vertical-align: middle; color: #adb5bd;"></i>
 											<?php endif; ?>
 										</td>
-										<td id="href-<?php echo $vHost['name']; ?>">
-											<?php echo htmlspecialchars($vHost['name']); ?>
-										</td>
+								<?php
+									$aliases = isset($vhost_alias_map) ? array_keys($vhost_alias_map, $vHost['name']) : [];
+								?>
+								<td id="td-href-<?php echo htmlspecialchars($vHost['name']); ?>" data-aliases="<?php echo htmlspecialchars(implode(',', $aliases)); ?>">
+									<div class="vhost-link-container">
+										<span id="href-<?php echo htmlspecialchars($vHost['name']); ?>"><?php echo htmlspecialchars($vHost['name']); ?></span>
+										<input type="hidden" name="vhost[]" class="vhost" value="<?php echo htmlspecialchars($vHost['name']); ?>" />
+									</div>
+									<?php if (!empty($aliases)): ?>
+										<?php foreach ($aliases as $alias): ?>
+											<div class="alias-link-container" style="margin-top: 5px; padding-left: 10px; border-left: 2px solid #ddd;">
+												<small style="font-weight: bold; color: #666;">Alias: <span id="href-<?php echo htmlspecialchars($alias); ?>"><?php echo htmlspecialchars($alias); ?></span></small>
+												<input type="hidden" name="vhost[]" class="vhost" value="<?php echo htmlspecialchars($alias); ?>" />
+												<span id="valid-<?php echo htmlspecialchars($alias); ?>" class="badge" style="font-size: 0.7rem;"></span>
+											</div>
+										<?php endforeach; ?>
+									<?php endif; ?>
+								</td>
 										<td><?php echo loadClass('Helper')->getEnv('HOST_PATH_HTTPD_DATADIR'); ?>/<?php echo $vHost['name']; ?>/<?php echo loadClass('Helper')->getEnv('HTTPD_DOCROOT_DIR'); ?>
 										</td>
 										<td>
@@ -346,12 +417,10 @@ function getProjectLogo($vhost)
 						error = this.responseText;
 
 						if (error.length && error.match(/^error/)) {
-							el_valid.className += ' bg-danger';
-							el_valid.innerHTML = 'ERR';
+							if (el_valid) { el_valid.className += ' bg-danger'; el_valid.innerHTML = 'ERR'; }
 							el_href.innerHTML = error;
 						} else if (error.length && error.match(/^warning/)) {
-							el_valid.className += ' bg-warning';
-							el_valid.innerHTML = 'WARN';
+							if (el_valid) { el_valid.className += ' bg-warning'; el_valid.innerHTML = 'WARN'; }
 							el_href.innerHTML = error.replace('warning', '');
 							checkDns(vhost);
 						} else {
@@ -388,11 +457,12 @@ function getProjectLogo($vhost)
 
 					if (this.readyState == 4 && (this.status == 200 || this.status == 426)) {
 						clearTimeout(xmlHttpTimeout);
-						el_valid.className += ' bg-success';
-						if (el_valid.innerHTML != 'WARN') {
-							el_valid.innerHTML = 'OK';
+						if (el_valid) {
+							el_valid.className += ' bg-success';
+							if (el_valid.innerHTML != 'WARN') {
+								el_valid.innerHTML = 'OK';
+							}
 						}
-						//el_href.innerHTML = '(<a target="_blank" href="'+proto+'//localhost/devilbox-project/'+name+'">ext</a>) <a target="_blank" href="'+proto+'//'+name+port+'">'+name+port+'</a>' + el_href.innerHTML;
 						el_href.innerHTML = '<a target="_blank" href="' + proto + '//' + name + port + '">' + name + port + '</a>';
 					} else {
 						//console.log(vhost);
@@ -402,14 +472,16 @@ function getProjectLogo($vhost)
 				xhttp.send();
 
 				// Timeout to abort in 1 second
-				var xmlHttpTimeout = setTimeout(ajaxTimeout, <?php echo loadClass('Helper')->getEnv('DNS_CHECK_TIMEOUT'); ?>000);
+				var xmlHttpTimeout = setTimeout(ajaxTimeout, <?php echo loadClass('Helper')->getEnv('DNS_CHECK_TIMEOUT'); ?> * 1000);
 				function ajaxTimeout(e) {
 					var el_valid = document.getElementById('valid-' + vhost);
 					var el_href = document.getElementById('href-' + vhost);
 					var error = this.responseText;
 
-					el_valid.className += ' bg-danger';
-					el_valid.innerHTML = 'ERR';
+					if (el_valid) {
+						el_valid.className += ' bg-danger';
+						el_valid.innerHTML = 'ERR';
+					}
 					el_href.innerHTML = 'No Host DNS record found. Add the following to <code>/etc/hosts</code>:<br/><code>127.0.0.1 ' + vhost + '.<?php echo loadClass('Httpd')->getTldSuffix(); ?></code>';
 				}
 
@@ -426,4 +498,4 @@ function getProjectLogo($vhost)
 	</script>
 </body>
 
-</html>
+</html>// test123
