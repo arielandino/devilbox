@@ -45,14 +45,18 @@ function getProjectLogo($vhost)
 
 	<div class="container">
 
-		<h1>Virtual Host 2.0</h1>
-		<br />
-		<br />
+		<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap: 1rem; margin-bottom: 1.5rem;">
+			<h1 style="margin:0;">Virtual Host 2.0</h1>
+			<div style="flex:1 1 320px; max-width:520px; min-width:240px;">
+				<input type="text" id="vhostFilter" class="form-control" placeholder="🔍 Buscar proyecto..." style="width:100%; padding: 12px; font-size: 1rem; border: 2px solid #007bff;">
+			</div>
+		</div>
 
 		<div class="row">
 			<div class="col-md-12">
 				<?php $vHosts = loadClass('Httpd')->getVirtualHosts(); ?>
 				<?php if ($vHosts): ?>
+
 					<?php
 					$vhost_to_group_map = [];				$vhost_alias_map = [];					$group_labels = [];
 
@@ -180,11 +184,11 @@ function getProjectLogo($vhost)
 
 					<?php foreach ($grouped_vhosts as $group_label => $hosts): ?>
 						<?php if (empty($hosts)) continue; ?>
-						<h3 data-toggle="collapse" data-target="#group-<?php echo md5($group_label); ?>" style="cursor: pointer; margin-top: 20px; font-size: 1.4rem;">
+						<h3 data-toggle="collapse" data-target="#group-<?php echo md5($group_label); ?>" style="cursor: pointer; margin-top: 20px; font-size: 1.4rem;" class="group-header" data-group="<?php echo md5($group_label); ?>">
 							<i class="fa fa-folder-open-o" aria-hidden="true"></i> <?php echo htmlspecialchars($group_label); ?>
-							<span class="badge badge-info" style="font-size: 0.8rem; vertical-align: middle;"><?php echo count($hosts); ?></span>
+							<span class="badge badge-info" style="font-size: 0.8rem; vertical-align: middle; group-count"><?php echo count($hosts); ?></span>
 						</h3>
-						<div id="group-<?php echo md5($group_label); ?>" class="collapse show">
+						<div id="group-<?php echo md5($group_label); ?>" class="collapse show group-container" data-group="<?php echo md5($group_label); ?>">
 						<table class="table table-striped">
 							<thead class="thead-inverse">
 								<tr>
@@ -196,9 +200,9 @@ function getProjectLogo($vhost)
 									<th style="width:60px;">Valid</th>
 								</tr>
 							</thead>
-							<tbody>
+							<tbody class="vhost-rows">
 								<?php foreach ($hosts as $vHost): ?>
-									<tr>
+									<tr class="vhost-row" data-vhost="<?php echo strtolower($vHost['name']); ?>" data-aliases="<?php echo htmlspecialchars(implode(',', $aliases ?? [])); ?>">
 										<td class="text-xs-center">
 											<?php if ($logo = getProjectLogo($vHost['name'])): ?>
 												<img src="<?php echo $logo; ?>" style="max-height:34px; max-width: 34px; vertical-align: middle; border-radius: 2px;" />
@@ -402,6 +406,66 @@ function getProjectLogo($vhost)
 			// your page initialization code here
 			// the DOM will be available here
 
+			// Filter functionality
+			const filterInput = document.getElementById('vhostFilter');
+			const groupHeaders = document.querySelectorAll('.group-header');
+			const groupContainers = document.querySelectorAll('.group-container');
+			const vhostRows = document.querySelectorAll('.vhost-row');
+
+			function filterVhosts() {
+				const filterValue = filterInput.value.toLowerCase().trim();
+				let visibleGroups = new Set();
+
+				// Filter rows
+				vhostRows.forEach(row => {
+					const vhostName = row.getAttribute('data-vhost');
+					const aliases = row.getAttribute('data-aliases').split(',').map(a => a.toLowerCase());
+					
+					// Check if vhost or any alias matches the filter
+					const matches = !filterValue || 
+						vhostName.includes(filterValue) || 
+						aliases.some(alias => alias.includes(filterValue));
+
+					if (matches) {
+						row.style.display = '';
+						// Get the group this row belongs to
+						const tbody = row.closest('.vhost-rows');
+						const container = tbody.closest('.group-container');
+						if (container) {
+							const group = container.getAttribute('data-group');
+							if (group) visibleGroups.add(group);
+						}
+					} else {
+						row.style.display = 'none';
+					}
+				});
+
+				// Show/hide groups and headers
+				groupContainers.forEach(container => {
+					const group = container.getAttribute('data-group');
+					const shouldShow = visibleGroups.has(group);
+					const header = document.querySelector(`.group-header[data-group="${group}"]`);
+					
+					if (shouldShow) {
+						container.style.display = '';
+						if (header) header.style.display = '';
+					} else {
+						container.style.display = 'none';
+						if (header) header.style.display = 'none';
+					}
+				});
+
+				// If no filter, show all
+				if (!filterValue) {
+					groupHeaders.forEach(h => h.style.display = '');
+					groupContainers.forEach(c => c.style.display = '');
+					vhostRows.forEach(r => r.style.display = '');
+				}
+			}
+
+			// Add event listener for filter input
+			filterInput.addEventListener('input', filterVhosts);
+			filterInput.addEventListener('keyup', filterVhosts);
 
 			function updateStatus(vhost) {
 				var xhttp = new XMLHttpRequest();
@@ -498,4 +562,4 @@ function getProjectLogo($vhost)
 	</script>
 </body>
 
-</html>// test123
+</html>

@@ -248,8 +248,13 @@ class Httpd extends BaseClass implements BaseInterface
 	 */
 	private function _is_valid_dir($path)
 	{
-		if (is_dir($path)) {
-			return true;
+		if (!is_string($path) || $path === '') {
+			return false;
+		}
+
+		$real_path = realpath($path);
+		if ($real_path !== false) {
+			return is_dir($real_path);
 		}
 
 		if (!is_link($path)) {
@@ -264,6 +269,11 @@ class Httpd extends BaseClass implements BaseInterface
 		// Resolve relative symlink targets relative to the symlink location
 		if (!preg_match('/^(?:\\/|[A-Za-z]:[\\\/])/', $target)) {
 			$target = dirname($path) . DIRECTORY_SEPARATOR . $target;
+		}
+
+		$resolved_target = realpath($target);
+		if ($resolved_target !== false) {
+			return is_dir($resolved_target);
 		}
 
 		return is_dir($target);
