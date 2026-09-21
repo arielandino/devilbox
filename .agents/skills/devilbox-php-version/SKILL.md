@@ -9,13 +9,23 @@ Esta skill describe cómo gestionar, cambiar y habilitar versiones modernas de P
 
 ## 1. Configuración de PHP 8.4
 
-En las versiones fijadas de Devilbox, las imágenes oficiales están fijadas a `devilbox/php-fpm:${PHP_SERVER}-work-0.150`.
-Para PHP 8.4 se utiliza la imagen mantenida por la comunidad:
-- Imagen base: `devilboxcommunity/php-fpm:8.4-work-0.160`
-- Tag local para compatibilidad con Devilbox:
+En las versiones fijadas de Devilbox, las imágenes oficiales solo llegan hasta 8.2 con el tag `${PHP_SERVER}-work-0.150`.
+Para PHP 8.3 y PHP 8.4 se utilizan las imágenes mantenidas por la comunidad:
+
+- **Para PHP 8.3:**
+  ```bash
+  docker pull devilboxcommunity/php-fpm:8.3-work-0.160
+  docker tag devilboxcommunity/php-fpm:8.3-work-0.160 devilbox/php-fpm:8.3-work-0.150
+  cp -r cfg/php-fpm-8.2 cfg/php-fpm-8.3
+  mkdir -p log/php-fpm-8.3
+  ```
+
+- **Para PHP 8.4:**
   ```bash
   docker pull devilboxcommunity/php-fpm:8.4-work-0.160
   docker tag devilboxcommunity/php-fpm:8.4-work-0.160 devilbox/php-fpm:8.4-work-0.150
+  cp -r cfg/php-fpm-8.2 cfg/php-fpm-8.4
+  mkdir -p log/php-fpm-8.4
   ```
 
 ## 2. Directorios de Configuración Requeridos
@@ -63,3 +73,12 @@ Verificar a través del servidor web HTTPD:
 curl -I http://localhost
 ```
 Debe retornar la cabecera `X-Powered-By: PHP/8.4.x`.
+
+## 6. Compatibilidad de phpMyAdmin con PHP 8.4
+
+phpMyAdmin <= 5.2.1 no es compatible con PHP 8.4 debido a parámetros nullable implícitos en librerías dependientes (como `thecodingmachine/safe`). Se requiere **phpMyAdmin 5.2.3** (o superior).
+
+- Ubicación en Devilbox: `.devilbox/www/htdocs/vendor/phpmyadmin-5.2.3/`
+- Enrutamiento intranet: configurado en `.devilbox/www/include/lib/Html.php` (menú Tools -> phpMyAdmin).
+- Acceso web: `http://localhost/vendor/phpmyadmin-5.2.3/index.php`.
+

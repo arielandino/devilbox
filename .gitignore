@@ -26,6 +26,9 @@
 # Ignore compose override file
 /docker-compose.override.yml
 
+# Ignore intranet vendor
+/.devilbox/www/htdocs/vendor/
+
 # Ignore logs
 /log/apache-2.2/*
 /log/apache-2.4/*

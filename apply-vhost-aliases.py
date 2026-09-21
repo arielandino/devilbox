@@ -122,6 +122,7 @@ def main():
         return 0
 
     docroot_dir = env.get('HTTPD_DOCROOT_DIR', 'public_html')
+    changed = False
 
     for source, aliases in groups.items():
         source_dir = datadir / source
